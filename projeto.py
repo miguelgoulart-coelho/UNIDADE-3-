@@ -1,0 +1,211 @@
+import math
+
+# ==========================================
+# 1. MÉTODOS DE INTERPOLAÇÃO
+# ==========================================
+
+def interpolacao_lagrange(x_vals, y_vals, x_alvo):
+    """Calcula a interpolação pelo polinômio de Lagrange."""
+    n = len(x_vals)
+    resultado = 0.0
+    for i in range(n):
+        termo = y_vals[i]
+        for j in range(n):
+            if i != j:
+                termo *= (x_alvo - x_vals[j]) / (x_vals[i] - x_vals[j])
+        resultado += termo
+    return resultado
+
+def interpolacao_newton(x_vals, y_vals, x_alvo):
+    """Calcula a interpolação usando Diferenças Divididas de Newton."""
+    n = len(x_vals)
+    coef = y_vals[:]
+    # Tabela de diferenças divididas
+    for j in range(1, n):
+        for i in range(n - 1, j - 1, -1):
+            coef[i] = (coef[i] - coef[i - 1]) / (x_vals[i] - x_vals[i - j])
+    
+    # Avaliação do polinômio
+    resultado = coef[n - 1]
+    for i in range(n - 2, -1, -1):
+        resultado = resultado * (x_alvo - x_vals[i]) + coef[i]
+    return resultado
+
+def interpolacao_gregory_newton(y_vals, x0, h, x_alvo):
+    """Calcula a interpolação por Gregory-Newton (Diferenças Finitas Avançadas)."""
+    n = len(y_vals)
+    u = (x_alvo - x0) / h
+    
+    # Construindo a tabela de diferenças finitas (delta y)
+    diffs = [y_vals[:]]
+    for j in range(1, n):
+        linha = []
+        for i in range(n - j):
+            linha.append(diffs[j-1][i+1] - diffs[j-1][i])
+        diffs.append(linha)
+        
+    resultado = y_vals[0]
+    u_termo = 1.0
+    for i in range(1, n):
+        u_termo *= (u - (i - 1))
+        resultado += (diffs[i][0] * u_termo) / math.factorial(i)
+    return resultado
+
+def spline_linear(x_vals, y_vals, x_alvo):
+    """Interpolação por Spline Linear."""
+    for i in range(len(x_vals) - 1):
+        if x_vals[i] <= x_alvo <= x_vals[i+1]:
+            x0, x1 = x_vals[i], x_vals[i+1]
+            y0, y1 = y_vals[i], y_vals[i+1]
+            return y0 + (y1 - y0) * (x_alvo - x0) / (x1 - x0)
+    return None
+
+def spline_cubica_natural(x_vals, y_vals, x_alvo):
+    """Interpolação por Spline Cúbica Natural usando o Algoritmo de Thomas."""
+    n = len(x_vals) - 1
+    h = [x_vals[i+1] - x_vals[i] for i in range(n)]
+    alpha = [0] * n
+    for i in range(1, n):
+        alpha[i] = (3 / h[i]) * (y_vals[i+1] - y_vals[i]) - (3 / h[i-1]) * (y_vals[i] - y_vals[i-1])
+    
+    # Resolvendo o sistema tridiagonal
+    l = [1] + [0] * n
+    mu = [0] * (n + 1)
+    z = [0] * (n + 1)
+    
+    for i in range(1, n):
+        l[i] = 2 * (x_vals[i+1] - x_vals[i-1]) - h[i-1] * mu[i-1]
+        mu[i] = h[i] / l[i]
+        z[i] = (alpha[i] - h[i-1] * z[i-1]) / l[i]
+        
+    l[n] = 1
+    z[n] = 0
+    c = [0] * (n + 1)
+    b = [0] * n
+    d = [0] * n
+    
+    for j in range(n-1, -1, -1):
+        c[j] = z[j] - mu[j] * c[j+1]
+        b[j] = (y_vals[j+1] - y_vals[j]) / h[j] - h[j] * (c[j+1] + 2 * c[j]) / 3
+        d[j] = (c[j+1] - c[j]) / (3 * h[j])
+        
+    # Buscando o intervalo e calculando
+    for i in range(n):
+        if x_vals[i] <= x_alvo <= x_vals[i+1]:
+            dx = x_alvo - x_vals[i]
+            return y_vals[i] + b[i]*dx + c[i]*(dx**2) + d[i]*(dx**3)
+
+# ==========================================
+# 2. AJUSTE DE CURVAS
+# ==========================================
+
+def mmq_linear(x_vals, y_vals):
+    """Ajuste de curva Linear pelo Método dos Mínimos Quadrados."""
+    n = len(x_vals)
+    soma_x = sum(x_vals)
+    soma_y = sum(y_vals)
+    soma_x2 = sum(x**2 for x in x_vals)
+    soma_xy = sum(x_vals[i] * y_vals[i] for i in range(n))
+    
+    # Resolvendo o sistema linear para a reta y = ax + b
+    a = (n * soma_xy - soma_x * soma_y) / (n * soma_x2 - soma_x**2)
+    b = (soma_y - a * soma_x) / n
+    return a, b
+
+# ==========================================
+# 3. INTEGRAÇÃO NUMÉRICA
+# ==========================================
+
+def newton_cotes_simpson_38(y_vals, h):
+    """Integração pela Regra 3/8 de Simpson (4 pontos)."""
+    return (3 * h / 8) * (y_vals[0] + 3*y_vals[1] + 3*y_vals[2] + y_vals[3])
+
+def regra_trapezios_repetida(y_vals, h):
+    """Integração pela Regra dos Trapézios Repetida."""
+    n = len(y_vals) - 1
+    soma = y_vals[0] + y_vals[-1]
+    for i in range(1, n):
+        soma += 2 * y_vals[i]
+    return (h / 2) * soma
+
+def simpson_13_repetida(y_vals, h):
+    """Integração pela Regra 1/3 de Simpson Repetida."""
+    n = len(y_vals) - 1
+    soma = y_vals[0] + y_vals[-1]
+    for i in range(1, n):
+        if i % 2 == 0: # Índices pares
+            soma += 2 * y_vals[i]
+        else:          # Índices ímpares
+            soma += 4 * y_vals[i]
+    return (h / 3) * soma
+
+def quadratura_gauss(funcao, a, b, n_pontos):
+    """Integração usando Fórmula de Quadratura de Gauss-Legendre."""
+    if n_pontos == 2:
+        pontos = [-1/math.sqrt(3), 1/math.sqrt(3)]
+        pesos = [1, 1]
+    elif n_pontos == 3:
+        pontos = [-math.sqrt(3/5), 0, math.sqrt(3/5)]
+        pesos = [5/9, 8/9, 5/9]
+    else:
+        raise ValueError("Configurado apenas para n=2 ou n=3")
+    
+    soma = 0
+    # Transformação do intervalo [-1, 1] para [a, b]
+    for i in range(n_pontos):
+        t = pontos[i]
+        x = ((b - a) * t + (b + a)) / 2
+        dx = (b - a) / 2
+        soma += pesos[i] * funcao(x) * dx
+    return soma
+
+# ==========================================
+# TESTES DOS CENÁRIOS E RESULTADOS
+# ==========================================
+if __name__ == "__main__":
+    print("=== RESULTADOS DO PACOTE COMPUTACIONAL ===\n")
+
+    # 1. Drone Autônomo (Lagrange / Newton)
+    t_drone = [1.0, 2.0, 3.0, 4.0, 5.0]
+    y_drone = [1.2, 1.9, 3.2, 5.5, 8.2]
+    alt_lagrange = interpolacao_lagrange(t_drone, y_drone, 3.5)
+    alt_newton = interpolacao_newton(t_drone, y_drone, 3.5)
+    print(f"1. Altitude do drone (t=3.5s): {alt_lagrange:.4f} metros (ambos métodos convergem)")
+
+    # 2. Resfriamento do Data Center (Gregory-Newton)
+    t_temp = [10, 20, 30, 40]
+    y_temp = [45.0, 52.0, 60.0, 71.0]
+    temp_25 = interpolacao_gregory_newton(y_temp, x0=10, h=10, x_alvo=25)
+    print(f"2. Temperatura do servidor (min 25): {temp_25:.4f} °C")
+
+    # 3. Braço Robótico a Laser (Splines)
+    t_laser = [0.0, 1.0, 2.0, 3.0]
+    y_laser = [2.5, 4.5, 3.0, 6.0]
+    spline_lin = spline_linear(t_laser, y_laser, 1.5)
+    spline_cub = spline_cubica_natural(t_laser, y_laser, 1.5)
+    print(f"3. Posição do laser (t=1.5s): Spline Linear = {spline_lin:.4f} cm | Spline Cúbica = {spline_cub:.4f} cm")
+
+    # 4. Tráfego UFMA - DEINF (MMQ)
+    x_hora = [8, 9, 10, 11, 12]
+    y_acessos = [2.1, 2.8, 3.1, 4.0, 4.8]
+    a, b = mmq_linear(x_hora, y_acessos)
+    previsao_13h = a * 13 + b
+    print(f"4. Tráfego UFMA: Reta P(x) = {a:.4f}x + {b:.4f} | Previsão 13h: {previsao_13h:.4f} milhares de acessos")
+
+    # 5. Monitor de Rede (Simpson 3/8)
+    v_dados = [10, 15, 12, 8] # h = 2
+    total_mb = newton_cotes_simpson_38(v_dados, h=2)
+    print(f"5. Total de dados transferidos: {total_mb:.4f} MB")
+
+    # 6. Carro Elétrico (Trapézios e Simpson 1/3)
+    v_carro = [0, 40, 65, 80, 90] # h = 0.5
+    dist_trap = regra_trapezios_repetida(v_carro, h=0.5)
+    dist_simp13 = simpson_13_repetida(v_carro, h=0.5)
+    print(f"6. Distância percorrida: Trapézios = {dist_trap:.4f} km | Simpson 1/3 = {dist_simp13:.4f} km")
+
+    # 7. Trabalho do Motor (Quadratura de Gauss)
+    def funcao_torque(x):
+        return 5*x**3 + x**2 - 12*x + 4
+    
+    trabalho_gauss = quadratura_gauss(funcao_torque, a=-1, b=1, n_pontos=2)
+    print(f"7. Trabalho total do motor (Gauss n=2): {trabalho_gauss:.4f} Joules (ou unidades de trabalho equivalentes)")
